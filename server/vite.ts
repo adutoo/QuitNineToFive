@@ -1,16 +1,10 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
-
-/* ---------------- ESM SAFE __dirname ---------------- */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-/* --------------------------------------------------- */
 
 const viteLogger = createLogger();
 
@@ -25,6 +19,9 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+/* =========================
+   DEV: Vite middleware
+   ========================= */
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -52,9 +49,9 @@ export async function setupVite(app: Express, server: Server) {
     const url = req.originalUrl;
 
     try {
-      const clientTemplate = path.resolve(
-        __dirname,
-        "..",
+      // 🔥 ALWAYS resolve from project root
+      const clientTemplate = path.join(
+        process.cwd(),
         "client",
         "index.html"
       );
@@ -76,6 +73,9 @@ export async function setupVite(app: Express, server: Server) {
   });
 }
 
+/* =========================
+   PROD: Serve built files
+   ========================= */
 export function serveStatic(app: Express) {
   const distPath = path.join(process.cwd(), "dist", "public");
 
@@ -92,4 +92,3 @@ export function serveStatic(app: Express) {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
-
