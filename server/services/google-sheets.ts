@@ -11,12 +11,12 @@ export class GoogleSheetsService {
       throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 not set");
     }
 
-    const json = JSON.parse(
+    const credentials = JSON.parse(
       Buffer.from(base64, "base64").toString("utf-8")
     );
 
     const auth = new GoogleAuth({
-      credentials: json,
+      credentials,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
@@ -24,6 +24,21 @@ export class GoogleSheetsService {
     this.spreadsheetId = process.env.GOOGLE_SHEETS_ID!;
   }
 
+  // ✅ ADD EMAIL TO SHEET
+  async addEmailToSheet(email: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+
+    await this.sheets.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: "Form Responses 1!A:B",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[timestamp, email]],
+      },
+    });
+  }
+
+  // ✅ READ WAITLIST COUNT
   async getWaitlistCountFromSheet(): Promise<number> {
     try {
       const res = await this.sheets.spreadsheets.values.get({
