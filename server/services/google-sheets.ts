@@ -6,27 +6,29 @@ export class GoogleSheetsService {
   private spreadsheetId: string;
 
   constructor() {
-    // 🔴 SAFETY CHECKS (fail fast if env vars are missing)
+    // 🔴 SAFETY CHECKS
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
       throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL is not set");
     }
 
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
-      throw new Error("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not set");
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_BASE64) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_BASE64 is not set");
     }
 
     if (!process.env.GOOGLE_SHEETS_ID) {
       throw new Error("GOOGLE_SHEETS_ID is not set");
     }
 
-    // ✅ Create Google Auth using ENV variables (Render-safe)
+    // ✅ Decode private key safely (FIXES OpenSSL error)
+    const privateKey = Buffer.from(
+      process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_BASE64,
+      "base64"
+    ).toString("utf8");
+
     const auth = new GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(
-          /\\n/g,
-          "\n"
-        ),
+        private_key: privateKey,
       },
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
@@ -35,29 +37,19 @@ export class GoogleSheetsService {
     this.spreadsheetId = process.env.GOOGLE_SHEETS_ID;
   }
 
-  // ✅ ADD EMAIL TO GOOGLE SHEET
   async addEmailToSheet(email: string): Promise<void> {
-    try {
-      const timestamp = new Date().toISOString();
-      const rowData = [timestamp, email];
+    const timestamp = new Date().toISOString();
 
-      await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
-        range: "Form Responses 1!A:B",
-        valueInputOption: "USER_ENTERED",
-        requestBody: {
-          values: [rowData],
-        },
-      });
-
-      console.log("✅ Email added to Google Sheets");
-    } catch (error) {
-      console.error("❌ Error adding email to Google Sheets:", error);
-      throw new Error("Failed to save email to waitlist");
-    }
+    await this.sheets.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: "Form Responses 1!A:B",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[timestamp, email]],
+      },
+    });
   }
 
-  // ✅ READ WAITLIST COUNT
   async getWaitlistCountFromSheet(): Promise<number> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
@@ -66,9 +58,7 @@ export class GoogleSheetsService {
       });
 
       const value = response.data.values?.[0]?.[0];
-      const count = Number(value);
-
-      return isNaN(count) ? 0 : count;
+      return Number(value) || 0;
     } catch (error) {
       console.error("❌ Error reading waitlist count:", error);
       return 0;
@@ -76,5 +66,4 @@ export class GoogleSheetsService {
   }
 }
 
-// ✅ SINGLETON INSTANCE
 export const googleSheetsService = new GoogleSheetsService();
